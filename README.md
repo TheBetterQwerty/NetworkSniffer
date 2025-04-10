@@ -21,3 +21,9 @@ A simple packet sniffing program written in C that captures and displays IP pack
    On Ubuntu/Debian:
    ```bash
    sudo apt-get install libpcap-dev
+   ```
+
+2. **Compile Sniffer**
+   ```bash
+   make
+   ```
