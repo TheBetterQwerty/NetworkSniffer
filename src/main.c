@@ -6,14 +6,14 @@
 #include <unistd.h>
 #include <netinet/ip.h>
 
-#include "argparse.h"
+#include "../includes/argparse.h"
 
 #define SIZE 50
 #define SNAPLEN 65535
 #define PROMISC 1 // using promisc mode
 #define TIMEOUT 1000 // 1 second
 
-char filter[5] = " ";
+char filter[5] = { 0 };
 int cnt = -1;
 
 void capture_packets(u_char* user, const struct pcap_pkthdr* pkt_header, const u_char* pkt_data) {
@@ -24,20 +24,24 @@ void capture_packets(u_char* user, const struct pcap_pkthdr* pkt_header, const u
 
     struct ip* ip_headers = (struct ip*) (pkt_data + 14);
 
-    char* protocol = "";
+    char* protocol = NULL;
     switch (ip_headers->ip_p) {
         case IPPROTO_ICMP: protocol = "ICMP"; break;
-        case IPPROTO_UDP : protocol = "UDP "; break;
-        case IPPROTO_TCP : protocol = "TCP "; break;
+        case IPPROTO_UDP : protocol = "UDP"; break;
+        case IPPROTO_TCP : protocol = "TCP"; break;
+		default: return;
     }
-    
-    if (!strcmp(protocol, filter)) return;
+
+    if (strncmp(protocol, filter, strlen(filter))) {
+		printf("protocol: %s | filter: %s\n", protocol, filter);
+		return;
+	}
 
     printf("[INFO] Packet Captured: \n");
     printf("User: %s\n", user);
     printf("   %-20s: %s\n", "Source IP", inet_ntoa(ip_headers->ip_src));
     printf("   %-20s: %s\n", "Destination IP", inet_ntoa(ip_headers->ip_dst));
-    
+
 
     if (strlen(protocol)) printf("   %-20s: %s\n", "Protocol", protocol);
     printf("   %-20s: %d bytes\n", "Packet Size", pkt_header->caplen);
@@ -51,7 +55,7 @@ char* select_dev(pcap_if_t* alldevsp) {
         printf("[!] Error allocating memory!\n");
         return NULL;
     }
-    
+
     printf("[INFO] Available Devices: \n");
     while ((alldevsp != NULL) && (idx < SIZE)) {
         devs[idx++] = alldevsp->name;
@@ -63,19 +67,19 @@ char* select_dev(pcap_if_t* alldevsp) {
         }
         alldevsp = alldevsp->next;
     }
-    
+
     devs = realloc(devs, idx * sizeof(char*));
-    
+
     int input = -1;
     printf("[+] Enter your choice: ");
     scanf("%d", &input);
     input--;
-    
+
     if ((input < 0) || (input > idx)) {
         printf("[!] Not a valid device!\n");
         return NULL;
-    } 
-    
+    }
+
     char* dev = devs[input];
     free(devs);
     printf("-----------------------------------------\n");
@@ -90,10 +94,10 @@ int main(int args, char** argv) {
         printf("[!] Elevated Privilages required to run this script. Use --help to see the help page\n");
         return 1;
     }
-    
+
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t* alldevsp = NULL;
-    
+
     if (pcap_findalldevs(&alldevsp, errbuf) < 0) {
         printf("[!] Error: %s\n", errbuf);
         return 1;
@@ -102,7 +106,7 @@ int main(int args, char** argv) {
     if (dev == NULL)  {
         dev = select_dev(alldevsp);
     }
-    
+
     pcap_t* handle = pcap_open_live((const char*) dev, SNAPLEN, PROMISC, TIMEOUT, errbuf);
     if (handle == NULL) {
         printf("[!] Error opening %s\n", dev);
@@ -114,7 +118,7 @@ int main(int args, char** argv) {
         printf("[!] Error capturing packets!\n");
         goto cleanup;
     }
-    
+
     cleanup:
         if (alldevsp != NULL) pcap_freealldevs(alldevsp);
         if (handle != NULL) pcap_close(handle);

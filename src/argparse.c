@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "argparse.h"
+#include "../includes/argparse.h"
 
 static void print_help(char* arg) {
     printf("[HELP] Usage: sudo %s -i <interface> [--filter <filter>]\n", arg);
@@ -14,7 +14,7 @@ static void print_help(char* arg) {
 void argparse(int args, char** argv, char** dev, char* filter, int* cnt) {
     if (args < 2)
     {  return;  }
-    
+
     for (int i = 0; i < args; i++) {
         if ((strcmp("-h", argv[i]) == 0) || (strcmp("--help", argv[i]) == 0)) {
             print_help(argv[0]);
