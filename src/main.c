@@ -32,10 +32,7 @@ void capture_packets(u_char* user, const struct pcap_pkthdr* pkt_header, const u
 		default: return;
     }
 
-    if (strncmp(protocol, filter, strlen(filter))) {
-		printf("protocol: %s | filter: %s\n", protocol, filter);
-		return;
-	}
+    if (strncmp(protocol, filter, strlen(filter))) return;
 
     printf("[INFO] Packet Captured: \n");
     printf("User: %s\n", user);
