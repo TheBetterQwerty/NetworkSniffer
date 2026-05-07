@@ -8,15 +8,10 @@
 
 #include "../includes/argparse.h"
 
-#define SIZE 50
-#define SNAPLEN 65535
-#define PROMISC 1 // using promisc mode
-#define TIMEOUT 1000 // 1 second
+Config parser = { 0 };
+int pkt_captured = 0;
 
-char filter[5] = { 0 };
-int cnt = -1;
-
-void capture_packets(u_char* user, const struct pcap_pkthdr* pkt_header, const u_char* pkt_data) {
+void capture_packets(u_char* user __attribute_maybe_unused__, const struct pcap_pkthdr* pkt_header, const u_char* pkt_data) {
     if (pkt_header->len < 14) {
         printf("[!] Packet too short!\n");
         return;
@@ -29,20 +24,29 @@ void capture_packets(u_char* user, const struct pcap_pkthdr* pkt_header, const u
         case IPPROTO_ICMP: protocol = "ICMP"; break;
         case IPPROTO_UDP : protocol = "UDP"; break;
         case IPPROTO_TCP : protocol = "TCP"; break;
+		case IPPROTO_RAW : protocol = "RAW"; break;
 		default: return;
     }
 
-    if (strncmp(protocol, filter, strlen(filter))) return;
+    if (strncmp(protocol, parser.filter, strlen(parser.filter))) return;
+	if (parser.cnt != -1 && pkt_captured > parser.cnt) exit(0);
 
-    printf("[INFO] Packet Captured: \n");
-    printf("User: %s\n", user);
-    printf("   %-20s: %s\n", "Source IP", inet_ntoa(ip_headers->ip_src));
-    printf("   %-20s: %s\n", "Destination IP", inet_ntoa(ip_headers->ip_dst));
+	char* src_ip = inet_ntoa(ip_headers->ip_src);
+	char* dst_ip = inet_ntoa(ip_headers->ip_dst);
+
+	if (parser.src && strncmp(parser.src, src_ip, strlen(src_ip))) return; // Shows only specified src or dst
+	if (parser.dst && strncmp(parser.dst, dst_ip, strlen(dst_ip))) return;
+
+	printf(parser.cnt == -1 ? "[INFO] Packet Captured : \n" : "[INFO] Packet Captured (%d/%d): \n", pkt_captured, parser.cnt);
+
+    printf("   %-20s: %s\n", "Source IP", src_ip);
+    printf("   %-20s: %s\n", "Destination IP", dst_ip);
 
 
     if (strlen(protocol)) printf("   %-20s: %s\n", "Protocol", protocol);
     printf("   %-20s: %d bytes\n", "Packet Size", pkt_header->caplen);
     printf("-----------------------------------------\n");
+	++pkt_captured;
 }
 
 char* select_dev(pcap_if_t* alldevsp) {
@@ -84,8 +88,8 @@ char* select_dev(pcap_if_t* alldevsp) {
 }
 
 int main(int args, char** argv) {
-    char* dev = NULL;
-    argparse(args, argv, &dev, filter, &cnt);
+
+    argparse(args, argv, &parser);
 
     if (geteuid() != 0) {
         printf("[!] Elevated Privilages required to run this script. Use --help to see the help page\n");
@@ -100,18 +104,16 @@ int main(int args, char** argv) {
         return 1;
     }
 
-    if (dev == NULL)  {
-        dev = select_dev(alldevsp);
-    }
+    if (!parser.dev) parser.dev = select_dev(alldevsp);
 
-    pcap_t* handle = pcap_open_live((const char*) dev, SNAPLEN, PROMISC, TIMEOUT, errbuf);
+    pcap_t* handle = pcap_open_live((const char*) parser.dev, SNAPLEN, PROMISC, TIMEOUT, errbuf);
     if (handle == NULL) {
-        printf("[!] Error opening %s\n", dev);
+        printf("[!] Error opening %s\n", parser.dev);
         goto cleanup;
     }
 
-    printf("[*] Sniffing with %s\n", dev);
-    if (pcap_loop(handle, cnt, capture_packets, NULL) < 0) {
+    printf("[*] Sniffing with %s\n", parser.dev);
+    if (pcap_loop(handle, -1, capture_packets, NULL) < 0) {
         printf("[!] Error capturing packets!\n");
         goto cleanup;
     }
